@@ -70,6 +70,10 @@ dependencies:
   # Logging
   logger: ^2.0.2+1
 
+  # File handling
+  pointycastle: ^3.9.1
+  open_filex: ^4.7.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

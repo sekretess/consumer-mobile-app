@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:injectable/injectable.dart';
 import 'package:logger/logger.dart';
 import 'package:intl/intl.dart';
@@ -6,10 +9,12 @@ import '../models/message_brief_dto.dart';
 import '../models/message_dto.dart';
 import '../models/message_record_dto.dart';
 import '../models/business_dto.dart';
+import '../models/file_message_dto.dart';
 import '../repositories/message_repository.dart';
 import '../repositories/auth_repository.dart';
 import '../../core/enums/message_type.dart';
 import 'cryptographic_service.dart';
+import 'file_service.dart';
 import '../database/message_database.dart' as db;
 
 abstract class IMessageService {
@@ -17,6 +22,7 @@ abstract class IMessageService {
   Future<List<String>> getTopSenders(String username);
   Future<void> handleMessage(MessageDto message);
   Future<List<MessageRecordDto>> loadMessages(String sender);
+  Stream<void> get fileStoredStream;
 }
 
 @lazySingleton
@@ -24,12 +30,19 @@ class MessageService implements IMessageService {
   final MessageRepository _messageRepository;
   final AuthRepository _authRepository;
   final CryptographicService _cryptographicService;
+  final FileService _fileService;
   final Logger _logger = Logger();
+
+  final _fileStoredController = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get fileStoredStream => _fileStoredController.stream;
 
   MessageService(
     this._messageRepository,
     this._authRepository,
     this._cryptographicService,
+    this._fileService,
   );
 
   @override
@@ -60,6 +73,9 @@ class MessageService implements IMessageService {
           break;
         case MessageType.private:
           await _processPrivateMessage(encryptedText, sender);
+          break;
+        case MessageType.file:
+          await _processFileMessage(encryptedText, sender);
           break;
         case MessageType.unknown:
           _logger.w('Unknown message type: ${message.type}');
@@ -128,6 +144,46 @@ class MessageService implements IMessageService {
     }
   }
 
+  Future<void> _processFileMessage(
+    String encryptedText,
+    String sender,
+  ) async {
+    try {
+      // Decrypt Signal-Protocol envelope (file messages are sent as group/advert style)
+      final decryptedJson =
+          await _cryptographicService.decryptGroupChatMessage(sender, encryptedText);
+      if (decryptedJson == null) {
+        _logger.e('Failed to decrypt file message from $sender');
+        return;
+      }
+
+      final fileMessage = FileMessageDto.fromJson(
+        jsonDecode(decryptedJson) as Map<String, dynamic>,
+      );
+
+      // Download and decrypt the file; store even on failure so message appears in list
+      final localPath = await _fileService.downloadAndSaveFile(fileMessage);
+
+      final messageBody = jsonEncode({
+        'kind': 'file',
+        'localPath': localPath,
+        'mimeType': fileMessage.mimeType,
+      });
+
+      final username = await _authRepository.getUsername();
+      await _messageRepository.storeDecryptedMessage(
+        sender,
+        messageBody,
+        username ?? 'unknown',
+      );
+
+      _logger.i('Stored file message from $sender, localPath=$localPath');
+      _fileStoredController.add(null);
+    } catch (e) {
+      _logger.e('Error processing file message', error: e);
+    }
+  }
+
   @override
   Future<List<MessageRecordDto>> loadMessages(String sender) async {
     try {
@@ -142,7 +198,6 @@ class MessageService implements IMessageService {
         final messageDate = DateTime.fromMillisecondsSinceEpoch(message.createdAt);
         final dateText = _formatDateText(messageDate);
 
-        // Add date header if date changed
         if (lastDateText != dateText) {
           messageRecords.add(MessageRecordDto(
             sender: message.sender,
@@ -154,14 +209,32 @@ class MessageService implements IMessageService {
           lastDateText = dateText;
         }
 
-        // Add message item
+        // Detect file messages stored as JSON
+        String? filePath;
+        String? mimeType;
+        String? displayMessage = message.messageBody;
+
+        if (message.messageBody.startsWith('{"kind":"file"')) {
+          try {
+            final fileJson =
+                jsonDecode(message.messageBody) as Map<String, dynamic>;
+            filePath = fileJson['localPath'] as String?;
+            mimeType = fileJson['mimeType'] as String?;
+            displayMessage = null; // UI uses filePath/mimeType instead
+          } catch (_) {
+            // Not valid JSON – treat as plain text
+          }
+        }
+
         messageRecords.add(MessageRecordDto(
           messageId: message.id,
           sender: message.sender,
-          message: message.messageBody,
+          message: displayMessage,
           messageDate: message.createdAt,
           dateText: dateText,
           itemType: ItemType.item,
+          filePath: filePath,
+          mimeType: mimeType,
         ));
       }
 
@@ -181,13 +254,14 @@ class MessageService implements IMessageService {
     if (daysDifference == 0) {
       return 'Today';
     } else if (daysDifference <= 7) {
-      return DateFormat('EEEE').format(dateTime); // Day of week
+      return DateFormat('EEEE').format(dateTime);
     } else {
-      final monthsDifference = (now.year - dateTime.year) * 12 + (now.month - dateTime.month);
+      final monthsDifference =
+          (now.year - dateTime.year) * 12 + (now.month - dateTime.month);
       if (monthsDifference >= 12) {
-        return DateFormat('dd MMMM yyyy').format(dateTime); // Full date with year
+        return DateFormat('dd MMMM yyyy').format(dateTime);
       } else {
-        return DateFormat('dd MMMM').format(dateTime); // Day and month
+        return DateFormat('dd MMMM').format(dateTime);
       }
     }
   }
@@ -200,7 +274,6 @@ class MessageService implements IMessageService {
     DateTime timestamp,
   ) async {
     try {
-      // Use the database directly to set custom timestamp
       final messageDatabase = db.MessageDatabase();
       await messageDatabase.insertMessageWithTimestamp(
         username,

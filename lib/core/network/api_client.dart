@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:injectable/injectable.dart';
@@ -290,6 +291,23 @@ class ApiClient {
     } catch (e) {
       _logger.e('Update one time keys failed with unexpected error', error: e);
       return false;
+    }
+  }
+
+  Future<Uint8List?> downloadEncryptedFile(String fileId, String fileToken) async {
+    try {
+      final response = await _dio.post(
+        '/files',
+        data: jsonEncode({'fileId': fileId, 'fileToken': fileToken}),
+        options: Options(
+          contentType: 'application/json',
+          responseType: ResponseType.bytes,
+        ),
+      );
+      return response.data as Uint8List?;
+    } catch (e) {
+      _logger.e('Download encrypted file failed', error: e);
+      return null;
     }
   }
 }

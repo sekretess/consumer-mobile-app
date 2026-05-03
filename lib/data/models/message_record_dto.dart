@@ -11,6 +11,10 @@ class MessageRecordDto {
   final int messageDate;
   final String? dateText;
   final ItemType itemType;
+  final String? filePath;
+  final String? mimeType;
+
+  bool get isFileMessage => filePath != null || mimeType != null;
 
   MessageRecordDto({
     this.messageId,
@@ -19,6 +23,8 @@ class MessageRecordDto {
     required this.messageDate,
     this.dateText,
     required this.itemType,
+    this.filePath,
+    this.mimeType,
   });
 
   factory MessageRecordDto.fromJson(Map<String, dynamic> json) =>

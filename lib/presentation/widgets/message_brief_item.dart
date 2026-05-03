@@ -15,9 +15,13 @@ class MessageBriefItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final messagePreview = messageBrief.messageBody.length > 130
-        ? '${messageBrief.messageBody.substring(0, 130)}...'
-        : messageBrief.messageBody;
+    final rawBody = messageBrief.messageBody;
+    final isFile = rawBody.startsWith('{"kind":"file"');
+    final messagePreview = isFile
+        ? 'File'
+        : rawBody.length > 130
+            ? '${rawBody.substring(0, 130)}...'
+            : rawBody;
 
     return InkWell(
       onTap: onTap,
@@ -42,14 +46,28 @@ class MessageBriefItem extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    messagePreview,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      if (isFile) ...[
+                        const Icon(
+                          Icons.insert_drive_file_outlined,
+                          size: 14,
+                          color: AppColors.sekretessBlue,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          messagePreview,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
