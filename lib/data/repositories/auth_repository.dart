@@ -24,7 +24,7 @@ abstract class IAuthRepository {
 class AuthRepository implements IAuthRepository {
   final ApiClient _apiClient;
   final SharedPreferences _prefs;
-  final ICryptographicService _cryptographicService;
+  final CryptographicService _cryptographicService;
   static const String _authStateKey = 'auth_state';
   final _logoutController = StreamController<bool>.broadcast();
 

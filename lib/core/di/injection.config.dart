@@ -59,7 +59,7 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i549.AuthRepository>(() => _i549.AuthRepository(
           gh<_i838.ApiClient>(),
           gh<_i460.SharedPreferences>(),
-          gh<_i629.ICryptographicService>(),
+          gh<_i629.CryptographicService>(),
         ));
     gh.lazySingleton<_i951.MessageService>(() => _i951.MessageService(
           gh<_i45.MessageRepository>(),
