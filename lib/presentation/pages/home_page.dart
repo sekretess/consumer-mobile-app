@@ -105,7 +105,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
           // Trusted Senders Horizontal List
           Container(
-            height: 100,
+            height: 112,
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: topSendersAsync.when(
               data: (senders) {
