@@ -14,7 +14,6 @@ import org.signal.libsignal.protocol.NoSessionException;
 import org.signal.libsignal.protocol.SessionCipher;
 import org.signal.libsignal.protocol.SignalProtocolAddress;
 import org.signal.libsignal.protocol.UntrustedIdentityException;
-import org.signal.libsignal.protocol.UsePqRatchet;
 import org.signal.libsignal.protocol.ecc.ECKeyPair;
 import org.signal.libsignal.protocol.ecc.ECPrivateKey;
 import org.signal.libsignal.protocol.groups.GroupCipher;
@@ -210,6 +209,6 @@ public class SekretessCryptographicService {
         PreKeySignalMessage preKeySignalMessage = new PreKeySignalMessage(base64Decoder.decode(base64Message));
         SignalProtocolAddress signalProtocolAddress = new SignalProtocolAddress(sender, 1);
         SessionCipher sessionCipher = new SessionCipher(sekretessSignalProtocolStore, signalProtocolAddress);
-        return Optional.of(new String(sessionCipher.decrypt(preKeySignalMessage, UsePqRatchet.YES)));
+        return Optional.of(new String(sessionCipher.decrypt(preKeySignalMessage)));
     }
 }

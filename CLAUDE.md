@@ -59,7 +59,7 @@ Clean Architecture with three layers:
 **`lib/data/`** — data access
 - `models/` — JSON-serializable DTOs (all have `.g.dart` counterparts)
 - `repositories/` — `AuthRepository`, `MessageRepository`
-- `services/` — `CryptographicService` (Signal Protocol), `MessageService`, `BusinessService`, `ApiBridgeService` (native bridge), `VersionService`
+- `services/` — `CryptographicService` (Signal Protocol), `MessageService`, `BusinessService`, `ApiBridgeService` (native bridge), `FileService` (encrypted file download/decrypt), `VersionService`
 - `database/message_database.dart` — Drift/SQLite for local message persistence
 
 **`lib/presentation/`** — UI
@@ -69,10 +69,19 @@ Clean Architecture with three layers:
 
 ## Key Technical Details
 
-### Signal Protocol Encryption
+### Signal Protocol Encryption (native ↔ Dart bridge)
+The Signal Protocol crypto runs in **native code** (Android: `SignalProtocolHandler.kt` / `MainActivity.kt`; iOS via `LibSignalClient`), not in Dart. `CryptographicService` and `ApiBridgeService` are thin `MethodChannel` clients — when changing crypto behavior, the real logic is in the native handlers. Three channels wire the two sides:
+- `io.sekretess/signal_protocol` — **Dart → native**: `init`, `decryptPrivateMessage`, `decryptGroupChatMessage`, `processKeyDistributionMessage`, `updateOneTimeKeys`, `initializeKeyBundle`, `clearSignalKeys`
+- `io.sekretess/api_bridge` — **native → Dart (reverse channel)**: native Signal code calls back into Flutter's `ApiClient` (e.g. `upsertKeyStore`, `updateOneTimeKeys`). Native invocations are always posted to the main thread. This reverse dependency is why `ApiBridgeService.initialize()` must run at startup.
+- version channel — `getAppVersion`
+
+Library versions:
 - Android: `libsignal-client` v0.80.1 + `libsignal-android` v0.78.2 (native libs in `android/app/build.gradle.kts`)
 - iOS: `LibSignalClient` v0.80.1 via CocoaPods (configured in `ios/Podfile`)
 - Java 17 with core library desugaring is required on Android for Signal Protocol
+
+### Message Types
+`MessageType` (`lib/core/enums/message_type.dart`) maps wire strings to enum values: `advert`→advertisement, `key_dist`→keyDistribution, `private`, `file`, else `unknown`. `file` messages carry a `FileMessageDto`; `FileService.downloadAndSaveFile` fetches the encrypted blob via `ApiClient.downloadEncryptedFile`, decrypts it (PointyCastle), and opens it with `open_filex`.
 
 ### Dependency Injection
 `GetIt` + `Injectable` pattern. The `injection.dart` manually wires `ApiClient` ↔ `AuthRepository` to break a circular dependency — do not let the generator overwrite this manually resolved cycle.
@@ -90,6 +99,11 @@ Firebase initialization is wrapped in a try-catch in `main.dart` — the app run
 
 ### Environment Configuration
 API URLs are injected via `--dart-define=ENV=<env>` and read in `app_constants.dart`. Build fields in `android/app/build.gradle.kts` define `AUTH_API_URL`, `CONSUMER_API_URL`, `BUSINESS_API_URL`, `WEB_SOCKET_URL`.
+
+## Linting & Tests
+
+- `analysis_options.yaml` extends `flutter_lints`, enforces `prefer_const_constructors` / `prefer_const_literals_to_create_immutables`, and **allows `print`** (`avoid_print: false`) — `print` is used intentionally for native-bridge debugging alongside `logger`.
+- Test coverage is currently minimal (only `test/widget_test.dart`). There is no CI-enforced test suite.
 
 ## Android Release Builds
 

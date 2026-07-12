@@ -118,6 +118,13 @@ class MessageDatabase extends _$MessageDatabase {
     );
   }
 
+  // Update the body of an existing message (used to flip a failed file
+  // download to a successful one after a retry, without changing its position)
+  Future<void> updateMessageBody(int messageId, String messageBody) async {
+    await (update(messages)..where((m) => m.id.equals(messageId)))
+        .write(MessagesCompanion(messageBody: Value(messageBody)));
+  }
+
   // Delete a message
   Future<void> deleteMessage(int messageId) async {
     await (delete(messages)..where((m) => m.id.equals(messageId))).go();

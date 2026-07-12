@@ -39,8 +39,8 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 30
         targetSdk = 35
-        versionCode = 47
-        versionName = "Grape"
+        versionCode = 48
+        versionName = "Mandarin"
     }
 
 
@@ -98,8 +98,9 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation("com.google.android.play:app-update:2.1.0")
     // Signal Protocol dependencies
-    implementation("org.signal:libsignal-client:0.80.1")
-    runtimeOnly("org.signal:libsignal-android:0.78.2")
+    // client (Java API) and android (native .so) must be the SAME version.
+    implementation("org.signal:libsignal-client:0.86.5")
+    runtimeOnly("org.signal:libsignal-android:0.86.5")
     
     // Room database for Signal Protocol storage
     implementation("androidx.room:room-runtime:2.6.1")

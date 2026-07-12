@@ -51,14 +51,27 @@ class _BusinessInfoBottomSheetState extends State<BusinessInfoBottomSheet> {
       _isLoading = true;
     });
 
+    final businessId = widget.business.businessId;
+    if (businessId == null) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Missing business id')),
+        );
+      }
+      return;
+    }
+
     try {
       final businessService = getIt<BusinessService>();
       bool success;
-      
+
       if (value) {
-        success = await businessService.subscribeToBusiness(widget.business.name);
+        success = await businessService.subscribeToBusiness(businessId);
       } else {
-        success = await businessService.unsubscribeFromBusiness(widget.business.name);
+        success = await businessService.unsubscribeFromBusiness(businessId);
       }
 
       if (success && mounted) {

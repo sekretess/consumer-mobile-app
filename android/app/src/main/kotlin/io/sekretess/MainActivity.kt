@@ -245,7 +245,10 @@ class MainActivity : FlutterActivity() {
                         } else {
                             result.error("INVALID_ARGUMENTS", "Sender and base64Message are required", null)
                         }
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
+                        // libsignal wraps an unrecognised ciphertext version as an
+                        // unchecked AssertionError (not Exception); catch Throwable so a
+                        // single undecryptable message can never crash the app.
                         result.error("DECRYPT_ERROR", e.message, null)
                     }
                 }
@@ -259,7 +262,10 @@ class MainActivity : FlutterActivity() {
                         } else {
                             result.error("INVALID_ARGUMENTS", "Sender and base64Message are required", null)
                         }
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
+                        // libsignal wraps an unrecognised ciphertext version as an
+                        // unchecked AssertionError (not Exception); catch Throwable so a
+                        // single undecryptable message can never crash the app.
                         result.error("DECRYPT_ERROR", e.message, null)
                     }
                 }

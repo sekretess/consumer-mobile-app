@@ -15,6 +15,7 @@ import '../repositories/auth_repository.dart';
 import '../../core/enums/message_type.dart';
 import 'cryptographic_service.dart';
 import 'file_service.dart';
+import 'file_message_state.dart';
 import '../database/message_database.dart' as db;
 
 abstract class IMessageService {
@@ -22,6 +23,7 @@ abstract class IMessageService {
   Future<List<String>> getTopSenders(String username);
   Future<void> handleMessage(MessageDto message);
   Future<List<MessageRecordDto>> loadMessages(String sender);
+  Future<bool> retryFileDownload(int messageId, Map<String, dynamic> fileMessageJson);
   Stream<void> get fileStoredStream;
 }
 
@@ -149,9 +151,11 @@ class MessageService implements IMessageService {
     String sender,
   ) async {
     try {
-      // Decrypt Signal-Protocol envelope (file messages are sent as group/advert style)
+      // File messages are targeted 1:1 (the fileToken names a single consumer),
+      // so the envelope is a pairwise Signal message — decrypt it like a private
+      // message (SessionCipher), not a group/sender-key message.
       final decryptedJson =
-          await _cryptographicService.decryptGroupChatMessage(sender, encryptedText);
+          await _cryptographicService.decryptPrivateMessage(sender, encryptedText);
       if (decryptedJson == null) {
         _logger.e('Failed to decrypt file message from $sender');
         return;
@@ -161,26 +165,41 @@ class MessageService implements IMessageService {
         jsonDecode(decryptedJson) as Map<String, dynamic>,
       );
 
-      // Download and decrypt the file; store even on failure so message appears in list
-      final localPath = await _fileService.downloadAndSaveFile(fileMessage);
-
-      final messageBody = jsonEncode({
-        'kind': 'file',
-        'localPath': localPath,
-        'mimeType': fileMessage.mimeType,
-      });
+      // Download and decrypt the file; store even on failure so the message
+      // appears in the list (with a retry affordance when recoverable).
+      final outcome = await _fileService.downloadAndSaveFile(fileMessage);
 
       final username = await _authRepository.getUsername();
       await _messageRepository.storeDecryptedMessage(
         sender,
-        messageBody,
+        encodeFileMessageBody(fileMessage, outcome),
         username ?? 'unknown',
       );
 
-      _logger.i('Stored file message from $sender, localPath=$localPath');
+      _logger.i('Stored file message from $sender, status=${outcome.status}');
       _fileStoredController.add(null);
     } catch (e) {
       _logger.e('Error processing file message', error: e);
+    }
+  }
+
+  @override
+  Future<bool> retryFileDownload(
+    int messageId,
+    Map<String, dynamic> fileMessageJson,
+  ) async {
+    try {
+      final fileMessage = FileMessageDto.fromJson(fileMessageJson);
+      final outcome = await _fileService.downloadAndSaveFile(fileMessage);
+      await _messageRepository.updateMessageBody(
+        messageId,
+        encodeFileMessageBody(fileMessage, outcome),
+      );
+      _fileStoredController.add(null);
+      return outcome.isSuccess;
+    } catch (e) {
+      _logger.e('Failed to retry file download for id=$messageId', error: e);
+      return false;
     }
   }
 
@@ -210,31 +229,21 @@ class MessageService implements IMessageService {
         }
 
         // Detect file messages stored as JSON
-        String? filePath;
-        String? mimeType;
-        String? displayMessage = message.messageBody;
-
-        if (message.messageBody.startsWith('{"kind":"file"')) {
-          try {
-            final fileJson =
-                jsonDecode(message.messageBody) as Map<String, dynamic>;
-            filePath = fileJson['localPath'] as String?;
-            mimeType = fileJson['mimeType'] as String?;
-            displayMessage = null; // UI uses filePath/mimeType instead
-          } catch (_) {
-            // Not valid JSON – treat as plain text
-          }
-        }
+        final fileState = decodeFileMessageBody(message.messageBody);
 
         messageRecords.add(MessageRecordDto(
           messageId: message.id,
           sender: message.sender,
-          message: displayMessage,
+          // Plain-text rows show their body; file rows use the file fields.
+          message: fileState == null ? message.messageBody : null,
           messageDate: message.createdAt,
           dateText: dateText,
           itemType: ItemType.item,
-          filePath: filePath,
-          mimeType: mimeType,
+          filePath: fileState?.localPath,
+          mimeType: fileState?.mimeType,
+          downloadFailed: fileState?.downloadFailed ?? false,
+          retryable: fileState?.retryable ?? false,
+          fileMessageJson: fileState?.fileMessageJson,
         ));
       }
 

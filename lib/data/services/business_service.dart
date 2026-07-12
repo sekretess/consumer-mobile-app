@@ -6,8 +6,8 @@ import '../../core/network/api_client.dart';
 abstract class IBusinessService {
   Future<List<BusinessDto>> getBusinesses();
   Future<List<String>> getSubscribedBusinesses();
-  Future<bool> subscribeToBusiness(String businessName);
-  Future<bool> unsubscribeFromBusiness(String businessName);
+  Future<bool> subscribeToBusiness(String businessId);
+  Future<bool> unsubscribeFromBusiness(String businessId);
 }
 
 @lazySingleton
@@ -27,12 +27,12 @@ class BusinessService implements IBusinessService {
   }
 
   @override
-  Future<bool> subscribeToBusiness(String businessName) async {
-    return await _apiClient.subscribeToBusiness(businessName);
+  Future<bool> subscribeToBusiness(String businessId) async {
+    return await _apiClient.subscribeToBusiness(businessId);
   }
 
   @override
-  Future<bool> unsubscribeFromBusiness(String businessName) async {
-    return await _apiClient.unsubscribeFromBusiness(businessName);
+  Future<bool> unsubscribeFromBusiness(String businessId) async {
+    return await _apiClient.unsubscribeFromBusiness(businessId);
   }
 }

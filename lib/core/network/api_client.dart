@@ -124,9 +124,9 @@ class ApiClient {
     }
   }
 
-  Future<bool> subscribeToBusiness(String businessName) async {
+  Future<bool> subscribeToBusiness(String businessId) async {
     try {
-      await _dio.post('/businesses/$businessName/subscriptions');
+      await _dio.post('/businesses/$businessId/subscriptions');
       return true;
     } catch (e) {
       _logger.e('Subscribe to business failed', error: e);
@@ -134,9 +134,9 @@ class ApiClient {
     }
   }
 
-  Future<bool> unsubscribeFromBusiness(String businessName) async {
+  Future<bool> unsubscribeFromBusiness(String businessId) async {
     try {
-      await _dio.delete('/businesses/$businessName/subscriptions');
+      await _dio.delete('/businesses/$businessId/subscriptions');
       return true;
     } catch (e) {
       _logger.e('Unsubscribe from business failed', error: e);

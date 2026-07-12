@@ -8,8 +8,10 @@ part of 'business_dto.dart';
 
 BusinessDto _$BusinessDtoFromJson(Map<String, dynamic> json) => BusinessDto(
       displayName: json['displayName'] as String,
-      name: json['name'] as String,
-      email: json['email'] as String,
+      name: json['businessName'] as String,
+      businessId: json['businessId'] as String?,
+      passedSekretessVerification:
+          json['passedSekretessVerification'] as bool? ?? false,
       icon: json['icon'] as String?,
       subscribed: json['subscribed'] as bool? ?? false,
     );
@@ -17,8 +19,9 @@ BusinessDto _$BusinessDtoFromJson(Map<String, dynamic> json) => BusinessDto(
 Map<String, dynamic> _$BusinessDtoToJson(BusinessDto instance) =>
     <String, dynamic>{
       'displayName': instance.displayName,
-      'name': instance.name,
-      'email': instance.email,
+      'businessName': instance.name,
+      'businessId': instance.businessId,
+      'passedSekretessVerification': instance.passedSekretessVerification,
       'icon': instance.icon,
       'subscribed': instance.subscribed,
     };

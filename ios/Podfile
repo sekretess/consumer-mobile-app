@@ -34,7 +34,7 @@ target 'Runner' do
   
   # Signal Protocol library
   # NOTE: LibSignalClient is installed via CocoaPods from GitHub
-  pod 'LibSignalClient', git: 'https://github.com/signalapp/libsignal.git', tag: 'v0.80.1', testspecs: ["Tests"]
+  pod 'LibSignalClient', git: 'https://github.com/signalapp/libsignal.git', tag: 'v0.86.5', testspecs: ["Tests"]
 
   
   target 'RunnerTests' do
@@ -64,10 +64,10 @@ post_install do |installer|
           phase.shell_path = '/bin/sh' unless phase.shell_path
         end
       end
-      # Set checksum for LibSignalClient v0.80.1
-      target.build_configurations.each do |config|
-        config.build_settings['LIBSIGNAL_FFI_PREBUILD_CHECKSUM'] = '9b5ff5414b2aae5625a87a5d20d37486bc92bc6384a4d17f5ba435e193bef18d'
-      end
+      # Prebuild-FFI checksum for LibSignalClient. Leave to the podspec's own
+      # value for the pinned tag (v0.86.5). If the prebuild verification fails
+      # during `pod install`, set the correct 0.86.5 checksum here:
+      #   config.build_settings['LIBSIGNAL_FFI_PREBUILD_CHECKSUM'] = '<0.86.5 checksum>'
     end
   end
   
