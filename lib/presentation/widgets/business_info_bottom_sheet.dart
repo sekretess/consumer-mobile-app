@@ -190,7 +190,13 @@ class _BusinessInfoBottomSheetState extends State<BusinessInfoBottomSheet> {
             onChanged: _toggleSoundAlerts,
           ),
           
-          SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
+          // Reserve space for the keyboard (viewInsets) AND the system
+          // navigation bar (viewPadding.bottom) so the last row isn't hidden
+          // behind the system toolbar on gesture/3-button-nav devices.
+          SizedBox(
+            height: MediaQuery.of(context).viewInsets.bottom +
+                MediaQuery.of(context).viewPadding.bottom,
+          ),
         ],
       ),
     );

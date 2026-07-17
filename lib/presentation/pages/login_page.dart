@@ -300,7 +300,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
             ),
           ),
-          if (_versionName != null && _versionCode != null)
+          // Hide the version label while the keyboard is open, otherwise the
+          // bottom-anchored label rises with the shrinking layout and overlaps
+          // the username/password fields.
+          if (_versionName != null &&
+              _versionCode != null &&
+              MediaQuery.of(context).viewInsets.bottom == 0)
             Positioned(
               bottom: 16,
               right: 16,

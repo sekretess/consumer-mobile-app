@@ -71,8 +71,11 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     if (!value.contains(RegExp(r'[0-9]'))) {
       return 'Password must contain at least one number';
     }
-    if (!value.contains(RegExp(r'[!@#$%^&*()]'))) {
-      return 'Password must contain at least one special character !@#\$%^&*()';
+    // Accept any non-alphanumeric, non-whitespace character as "special" so
+    // symbols outside a fixed whitelist (e.g. _ - . + = ? ~ , ; : [ ] { } | / \)
+    // are not wrongly rejected.
+    if (!value.contains(RegExp(r'[^A-Za-z0-9\s]'))) {
+      return 'Password must contain at least one special character';
     }
     return null;
   }
@@ -275,6 +278,9 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     decoration: InputDecoration(
                       labelText: 'Enter Password',
                       labelStyle: const TextStyle(color: AppColors.sekretessBlue),
+                      // Allow the validation error to wrap instead of being
+                      // truncated with an ellipsis on one line.
+                      errorMaxLines: 2,
                       hintText: 'Enter your password',
                       hintStyle: const TextStyle(color: AppColors.textTertiary),
                       prefixIcon: const Icon(
