@@ -205,7 +205,7 @@ class ApiClient {
   Future<bool> deleteUser() async {
     try {
       final response = await _dio.delete(
-        '/consumers',
+        '',
         options: Options(
           validateStatus: (status) {
             return status != null && status >= 200 && status < 300;

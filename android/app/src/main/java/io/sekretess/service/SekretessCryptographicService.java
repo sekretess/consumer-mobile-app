@@ -172,6 +172,18 @@ public class SekretessCryptographicService {
         SignedPreKeyRecord signedPreKeyRecord = generateSignedPreKey(signedPreKeyPair, signature);
         KyberPreKeyRecord[] kyberPreKeyRecords = generateKyberPreKeys(identityKeyPair.getPrivateKey());
 
+        // Persist the bundle locally so the phone can decrypt sessions built from it.
+        // The signup path uploads this bundle directly (createUser) and never runs
+        // init()'s store step, so without this the signed prekey, OPKs and kyber keys
+        // would live only on the server and inbound PreKeySignalMessages would fail
+        // with InvalidKeyIdException. The identity key + registration id are already
+        // persisted as side effects of getIdentityKeyPair()/getLocalRegistrationId().
+        // Safe for the init() path too: on upsert failure init() calls clearStorage(),
+        // which removes these again.
+        storePreKeyRecords(opk);
+        storeSignedPreKey(signedPreKeyRecord);
+        storeKyberPreKeyRecords(kyberPreKeyRecords);
+
         return new KeyBundle(registrationId, opk, signedPreKeyRecord,
                 identityKeyPair, signature,
                 kyberPreKeyRecords);

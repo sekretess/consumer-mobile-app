@@ -184,6 +184,17 @@ class SekretessCryptographicService {
         let signedPreKeyRecord = try generateSignedPreKey(privateKey: signedPreKeyPrivateKey, signature: signature)
         let kyberPreKeyRecords = generateKyberPreKeys(privateKey: identityKeyPair.privateKey)
 
+        // Persist the bundle locally so the phone can decrypt sessions built from it.
+        // The signup path uploads this bundle directly (createUser) and never runs
+        // initialize()'s store step, so without this the signed prekey, OPKs and kyber
+        // keys would live only on the server and inbound PreKeySignalMessages would fail
+        // to decrypt. Identity key + registration id are already persisted as side effects
+        // of identityKeyPair()/localRegistrationId(). Safe for the initialize() path too:
+        // on upsert failure initialize() calls clearStorage(), which removes these again.
+        storePreKeyRecords(opk)
+        storeSignedPreKey(signedPreKeyRecord)
+        storeKyberPreKeyRecords(kyberPreKeyRecords)
+
         return KeyBundle(
             registrationId: registrationId,
             opk: opk,

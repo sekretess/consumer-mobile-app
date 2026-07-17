@@ -30,7 +30,12 @@ class _MainPageState extends ConsumerState<MainPage> {
   StreamSubscription<SekretessEvent>? _eventSubscription;
   StreamSubscription<bool>? _logoutSubscription;
   ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _snackBarController;
+  Timer? _connectionLostTimer;
   String? _username;
+
+  // Only surface the "Network lost" message if the connection stays down this
+  // long — brief, self-healing drops shouldn't annoy the user.
+  static const Duration _connectionLostGracePeriod = Duration(seconds: 8);
 
   @override
   void initState() {
@@ -63,23 +68,31 @@ class _MainPageState extends ConsumerState<MainPage> {
     try {
       final success = await _cryptographicService.init();
       if (!success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to initialize encryption. Please restart the app.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        // Encryption key setup failed (e.g. keystore upload rejected by the
+        // server). init() has already wiped the local keys, so continuing would
+        // leave the user in a broken, undecryptable state. Log out and send them
+        // back to login so a fresh, consistent key bundle is registered on the
+        // next sign-in.
+        await _logoutToLogin('Could not set up encryption keys. Please log in again.');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error initializing encryption: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        await _logoutToLogin('Error initializing encryption. Please log in again.');
       }
     }
+  }
+
+  /// Shows [message], then logs the user out. The resulting logout event is
+  /// picked up by [_listenToLogoutEvents], which navigates back to the login
+  /// screen.
+  Future<void> _logoutToLogin(String message) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+    await _authRepository.logout();
   }
 
   Future<void> _connectWebSocket() async {
@@ -95,10 +108,23 @@ class _MainPageState extends ConsumerState<MainPage> {
       if (mounted) {
         switch (event) {
           case SekretessEvent.websocketConnectionEstablished:
+            // Connection recovered — cancel any pending "network lost" warning
+            // and dismiss it if already shown.
+            _connectionLostTimer?.cancel();
+            _connectionLostTimer = null;
             _hideConnectionSnackbar();
             break;
           case SekretessEvent.websocketConnectionLost:
-            _showConnectionSnackbar();
+            // Debounce: wait out a grace period before warning. If a timer is
+            // already pending or the snackbar is already up, don't reset it.
+            if (_connectionLostTimer == null && _snackBarController == null) {
+              _connectionLostTimer = Timer(_connectionLostGracePeriod, () {
+                _connectionLostTimer = null;
+                if (mounted) {
+                  _showConnectionSnackbar();
+                }
+              });
+            }
             break;
           case SekretessEvent.authFailed:
             _webSocketService.disconnect();
@@ -171,6 +197,7 @@ class _MainPageState extends ConsumerState<MainPage> {
   void dispose() {
     _eventSubscription?.cancel();
     _logoutSubscription?.cancel();
+    _connectionLostTimer?.cancel();
     _hideConnectionSnackbar();
     super.dispose();
   }
