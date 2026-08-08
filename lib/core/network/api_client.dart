@@ -202,6 +202,31 @@ class ApiClient {
     }
   }
 
+  /// Confirms an email-verification token issued by the signup email.
+  ///
+  /// Only needed when the verification link hands the raw token to the app
+  /// (`sekretess://verify?token=...`). When the server consumes the token
+  /// itself and merely redirects to `sekretess://verify`, there is nothing
+  /// left for the app to confirm.
+  Future<bool> verifyEmail(String token) async {
+    try {
+      final response = await _dio.get(
+        '/auth/verify/$token',
+        options: Options(
+          headers: {
+            'Authorization': null, // No auth needed for email verification
+          },
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+      _logger.i('Verify email: HTTP ${response.statusCode}');
+      return response.statusCode == 200;
+    } catch (e) {
+      _logger.e('Verify email failed', error: e);
+      return false;
+    }
+  }
+
   Future<bool> deleteUser() async {
     try {
       final response = await _dio.delete(

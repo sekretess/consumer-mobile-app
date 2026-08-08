@@ -4,6 +4,24 @@ platform :ios, '17.0'
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
+# LibSignalClient does not build its Rust FFI from source here; its podspec
+# downloads a prebuilt libsignal_ffi.a and verifies it against this sha256.
+# Without it the build dies in the pod's download script with
+# "LIBSIGNAL_FFI_PREBUILD_CHECKSUM: unbound variable".
+#
+# Signal publishes these checksums in Signal-iOS's own Podfile, but they skipped
+# v0.86.5 (0.86.4 → 0.86.7), so this one was computed from the official archive
+# at https://build-artifacts.signal.org/libraries/libsignal-client-ios-build-v0.86.5.tar.gz
+# Keep it in sync with the tag pinned below — a stale pair fails the build loudly.
+LIBSIGNAL_FFI_PREBUILD_CHECKSUM =
+  'a3df979aa39b307ac4ef0f3fd59536daab5d6b3f8257c7aefe5f0470625f2582'
+
+# The podspec picks this up on a fresh install (`ENV.fetch(..., '')`). It is not
+# enough on its own: once the pod is downloaded, CocoaPods reuses the podspec
+# cached in Pods/Local Podspecs, so the post_install hook below re-applies the
+# value to the generated target on every install.
+ENV['LIBSIGNAL_FFI_PREBUILD_CHECKSUM'] = LIBSIGNAL_FFI_PREBUILD_CHECKSUM
+
 project 'Runner', {
   'Debug' => :debug,
   'Profile' => :release,
@@ -64,10 +82,12 @@ post_install do |installer|
           phase.shell_path = '/bin/sh' unless phase.shell_path
         end
       end
-      # Prebuild-FFI checksum for LibSignalClient. Leave to the podspec's own
-      # value for the pinned tag (v0.86.5). If the prebuild verification fails
-      # during `pod install`, set the correct 0.86.5 checksum here:
-      #   config.build_settings['LIBSIGNAL_FFI_PREBUILD_CHECKSUM'] = '<0.86.5 checksum>'
+      # Target build settings override the pod's xcconfig, so this wins even
+      # when the cached podspec left the checksum empty.
+      target.build_configurations.each do |config|
+        config.build_settings['LIBSIGNAL_FFI_PREBUILD_CHECKSUM'] =
+          LIBSIGNAL_FFI_PREBUILD_CHECKSUM
+      end
     end
   end
   

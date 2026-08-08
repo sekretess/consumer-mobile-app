@@ -86,8 +86,7 @@ class SekretessCryptographicService {
                 preKeyStore: signalProtocolStore.preKeyStore,
                 signedPreKeyStore: signalProtocolStore.signedPreKeyStore,
                 kyberPreKeyStore: signalProtocolStore.kyberPreKeyStore,
-                context: storeContext,
-                usePqRatchet: true
+                context: storeContext
             )
             guard let decryptedString = String(data: decryptedData, encoding: .utf8) else {
                 throw SignalProtocolError.invalidMessage

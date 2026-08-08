@@ -20,8 +20,44 @@ import UIKit
     
     // Set up API bridge channel for native-to-Flutter calls
     setupApiBridgeChannel(messenger: controller.binaryMessenger)
-    
+
+    // Set up version channel (Android does this in MainActivity.configureFlutterEngine)
+    setupVersionChannel(messenger: controller.binaryMessenger)
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  private func setupVersionChannel(messenger: FlutterBinaryMessenger) {
+    let versionChannel = FlutterMethodChannel(
+      name: "io.sekretess/version",
+      binaryMessenger: messenger
+    )
+
+    versionChannel.setMethodCallHandler { call, result in
+      guard call.method == "getAppVersion" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+
+      let info = Bundle.main.infoDictionary
+      // Android reports BuildConfig.VERSION_NAME, which is a free-form string
+      // ("Marakuya"). CFBundleShortVersionString cannot hold that — App Store
+      // Connect requires period-separated integers — so the matching value
+      // lives in SekretessVersionName and this falls back to the bundle's own
+      // marketing version if that key is ever removed.
+      let versionName = info?["SekretessVersionName"] as? String
+        ?? info?["CFBundleShortVersionString"] as? String
+        ?? ""
+      // CFBundleVersion is a string on iOS, but Dart expects the Int that
+      // Android sends as BuildConfig.VERSION_CODE. Build numbers like "1.2.3"
+      // are not representable, so fall back to their leading component.
+      let build = info?["CFBundleVersion"] as? String ?? ""
+      let versionCode = Int(build)
+        ?? Int(build.prefix(while: { $0.isNumber }))
+        ?? 0
+
+      result(["versionName": versionName, "versionCode": versionCode])
+    }
   }
   
   private func setupApiBridgeChannel(messenger: FlutterBinaryMessenger) {

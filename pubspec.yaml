@@ -1,7 +1,15 @@
 name: consumer_flutter_app
 description: Sekretess Consumer Flutter Application
 publish_to: 'none'
-version: 1.0.35+35
+# Single source of truth for app versions on both platforms.
+#   version      -> Android versionCode / iOS CFBundleVersion (the "+51" part)
+#                   and the semver marketing version iOS ships as
+#                   CFBundleShortVersionString.
+#   version_name -> the release codename shown in the app on both platforms.
+#                   It cannot live in `version` above: pub rejects anything that
+#                   is not a semver ("Invalid version number: Marakuya+51").
+version: 1.0.51+51
+version_name: Marakuya
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -47,6 +55,9 @@ dependencies:
   google_fonts: ^6.1.0
   cached_network_image: ^3.3.1
   shimmer: ^3.0.0
+
+  # Deep links (sekretess:// custom scheme)
+  app_links: ^6.3.2
 
   # Utils
   intl: ^0.19.0

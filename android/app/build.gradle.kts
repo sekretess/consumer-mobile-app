@@ -10,6 +10,17 @@ plugins {
 import java.util.Properties
 import java.io.FileInputStream
 
+// Release codename, read from pubspec.yaml so Android and iOS stay in sync.
+// `version:` in pubspec must be a semver, so the codename lives in its own key
+// (see the comment there). iOS reads the same key in a Runner build phase.
+val pubspecVersionName: String = rootProject.file("../pubspec.yaml")
+    .readLines()
+    .firstOrNull { it.startsWith("version_name:") }
+    ?.substringAfter(":")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: error("version_name is missing from pubspec.yaml")
+
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 
@@ -39,8 +50,10 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 30
         targetSdk = 35
-        versionCode = 51
-        versionName = "Marakuya"
+        // Both come from pubspec.yaml: the build number from `version: x.y.z+N`,
+        // the codename from `version_name:`.
+        versionCode = flutter.versionCode
+        versionName = pubspecVersionName
     }
 
 
