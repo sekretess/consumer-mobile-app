@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/auth_repository.dart' show AuthRepository;
 import '../../core/di/injection.dart';
+import '../../core/network/api_exceptions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/services/version_service.dart';
 import 'main_page.dart';
@@ -22,6 +23,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  String? _infoMessage;
+  /// Set when the last login was refused because this account's email is
+  /// unverified; drives the "resend verification email" affordance.
+  String? _unverifiedUsername;
+  bool _isResendingEmail = false;
   String? _versionName;
   int? _versionCode;
 
@@ -55,6 +61,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _infoMessage = null;
+      _unverifiedUsername = null;
     });
 
     try {
@@ -69,10 +77,55 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const MainPage()),
       );
+    } on EmailNotVerifiedException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _unverifiedUsername = e.username;
+        _errorMessage =
+            'Your email address is not verified yet. Check your inbox for the '
+            'verification link.';
+      });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMessage = 'Login failed. Please check your credentials.';
+      });
+    }
+  }
+
+  Future<void> _handleResendVerificationEmail() async {
+    final username = _unverifiedUsername;
+    if (username == null || _isResendingEmail) return;
+
+    setState(() {
+      _isResendingEmail = true;
+      _infoMessage = null;
+    });
+
+    try {
+      final message =
+          await getIt<AuthRepository>().resendVerificationEmail(username);
+      if (!mounted) return;
+      setState(() {
+        _isResendingEmail = false;
+        _errorMessage = null;
+        _unverifiedUsername = null;
+        _infoMessage = message;
+      });
+    } on ResendVerificationException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isResendingEmail = false;
+        _errorMessage = e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isResendingEmail = false;
+        _errorMessage =
+            'Could not resend the verification email. Please try again.';
       });
     }
   }
@@ -222,23 +275,46 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                       if (_errorMessage != null) ...[
                         const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.error.withAlpha((255 * 0.1).round()),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: AppColors.error,
-                              width: 1,
-                            ),
+                        _buildMessageBox(_errorMessage!, AppColors.error),
+                      ],
+                      if (_infoMessage != null) ...[
+                        const SizedBox(height: 16),
+                        _buildMessageBox(
+                          _infoMessage!,
+                          AppColors.sekretessBlue,
+                        ),
+                      ],
+                      // Offered only after a login refused for an unverified
+                      // email, so the username is known to exist.
+                      if (_unverifiedUsername != null) ...[
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: _isResendingEmail
+                              ? null
+                              : _handleResendVerificationEmail,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.sekretessBlue,
                           ),
-                          child: Text(
-                            _errorMessage!,
+                          icon: _isResendingEmail
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.sekretessBlue,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(Icons.mail_outline, size: 18),
+                          label: Text(
+                            _isResendingEmail
+                                ? 'Sending...'
+                                : 'Resend verification email',
                             style: const TextStyle(
-                              color: AppColors.error,
                               fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                         ),
                       ],
@@ -318,6 +394,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBox(String message, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withAlpha((255 * 0.1).round()),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: color,
+          width: 1,
+        ),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: color,
+          fontSize: 14,
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }

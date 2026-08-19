@@ -10,7 +10,14 @@ import '../../core/network/api_client.dart';
 import '../../core/constants/app_constants.dart';
 
 abstract class IAuthRepository {
+  /// Throws [EmailNotVerifiedException] when the account exists but its email
+  /// address has not been verified yet.
   Future<void> authorize(String username, String password);
+
+  /// Re-sends the signup verification email. Returns the server's confirmation
+  /// message; throws [ResendVerificationException] on failure.
+  Future<String> resendVerificationEmail(String username);
+
   Future<String?> getAccessToken();
   Future<void> refreshAccessToken();
   Future<bool> isAuthorized();
@@ -38,6 +45,10 @@ class AuthRepository implements IAuthRepository {
     final response = await _apiClient.login(username, password);
     await _persistAuthState(response);
   }
+
+  @override
+  Future<String> resendVerificationEmail(String username) =>
+      _apiClient.resendVerificationEmail(username);
 
   @override
   Future<String?> getAccessToken() async {

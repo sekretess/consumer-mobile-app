@@ -11,7 +11,9 @@ import '../../data/models/auth_response.dart';
 import '../../data/models/business_dto.dart';
 import '../../data/models/user_dto.dart';
 import '../../data/models/key_bundle_dto.dart';
+import '../../data/models/verification_status_dto.dart';
 import '../../data/repositories/auth_repository.dart';
+import 'api_exceptions.dart';
 import 'interceptors/auth_interceptor.dart';
 
 @lazySingleton
@@ -70,10 +72,81 @@ class ApiClient {
         ),
       );
       return AuthResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      final status = _unverifiedEmailStatus(e.response);
+      if (status != null) {
+        _logger.w('Login refused: email not verified for $username');
+        throw EmailNotVerifiedException(
+          username: status.username?.isNotEmpty == true
+              ? status.username!
+              : username,
+          message: status.message?.isNotEmpty == true
+              ? status.message!
+              : 'Your email address has not been verified yet.',
+        );
+      }
+      _logger.e('Login failed', error: e);
+      rethrow;
     } catch (e) {
       _logger.e('Login failed', error: e);
       rethrow;
     }
+  }
+
+  /// Returns the verification status when [response] is the "email not
+  /// verified" 403 the server answers an otherwise valid login with, and null
+  /// for every other response (including an ordinary 403).
+  static VerificationStatusDto? _unverifiedEmailStatus(Response? response) {
+    if (response?.statusCode != 403) return null;
+    final status = VerificationStatusDto.tryParse(response!.data);
+    return (status != null && !status.verified) ? status : null;
+  }
+
+  /// Re-sends the signup verification email for [username].
+  ///
+  /// Unauthenticated by design — the caller has just been refused a login
+  /// because the account is unverified, so it holds no token.
+  Future<String> resendVerificationEmail(String username) async {
+    try {
+      final response = await _dio.post(
+        '/${Uri.encodeComponent(username)}/auth/resend-email',
+        options: Options(
+          headers: {
+            'Authorization': null, // No auth needed: the user isn't logged in
+          },
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+      _logger.i('Resend verification email: HTTP ${response.statusCode}');
+      final body = _asPlainMessage(response.data);
+      if (response.statusCode == 200) {
+        return body ?? 'Verification email sent.';
+      }
+      throw ResendVerificationException(
+        body ?? 'Could not resend the verification email.',
+      );
+    } on DioException catch (e) {
+      _logger.e('Resend verification email failed', error: e);
+      throw ResendVerificationException(
+        'Could not resend the verification email. Please try again.',
+      );
+    }
+  }
+
+  /// The server answers these endpoints with a bare JSON string; Dio hands it
+  /// back either decoded or raw depending on the content type.
+  static String? _asPlainMessage(dynamic data) {
+    if (data is String) {
+      if (data.isEmpty) return null;
+      try {
+        final decoded = jsonDecode(data);
+        if (decoded is String) return decoded.isEmpty ? null : decoded;
+      } catch (_) {
+        // Not JSON — the raw body is the message.
+      }
+      return data;
+    }
+    return null;
   }
 
   Future<AuthResponse> refreshToken(String refreshToken) async {
