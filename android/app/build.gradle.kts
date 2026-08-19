@@ -49,7 +49,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 30
-        targetSdk = 35
+        targetSdk = 36
         // Both come from pubspec.yaml: the build number from `version: x.y.z+N`,
         // the codename from `version_name:`.
         versionCode = flutter.versionCode
