@@ -40,7 +40,15 @@ public class IdentityKeyRepository {
         if (identityKeyEntity != null) {
             String identityKey = identityKeyEntity.getIdentityKeyPair();
             if (identityKey != null) {
-                return new IdentityKeyPair(base64Decoder.decode(identityKey));
+                // libsignal 0.86.x: the IdentityKeyPair(byte[]) constructor now throws
+                // checked InvalidKeyException, which this IdentityKeyStore override cannot
+                // declare, so surface a corrupt stored key as an unchecked failure.
+                try {
+                    return new IdentityKeyPair(base64Decoder.decode(identityKey));
+                } catch (InvalidKeyException e) {
+                    Log.e(TAG, "Stored identity key pair is invalid", e);
+                    throw new RuntimeException(e);
+                }
             }
         }
         return null;

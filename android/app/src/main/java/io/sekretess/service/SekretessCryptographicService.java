@@ -14,7 +14,6 @@ import org.signal.libsignal.protocol.NoSessionException;
 import org.signal.libsignal.protocol.SessionCipher;
 import org.signal.libsignal.protocol.SignalProtocolAddress;
 import org.signal.libsignal.protocol.UntrustedIdentityException;
-import org.signal.libsignal.protocol.UsePqRatchet;
 import org.signal.libsignal.protocol.ecc.ECKeyPair;
 import org.signal.libsignal.protocol.ecc.ECPrivateKey;
 import org.signal.libsignal.protocol.groups.GroupCipher;
@@ -173,6 +172,18 @@ public class SekretessCryptographicService {
         SignedPreKeyRecord signedPreKeyRecord = generateSignedPreKey(signedPreKeyPair, signature);
         KyberPreKeyRecord[] kyberPreKeyRecords = generateKyberPreKeys(identityKeyPair.getPrivateKey());
 
+        // Persist the bundle locally so the phone can decrypt sessions built from it.
+        // The signup path uploads this bundle directly (createUser) and never runs
+        // init()'s store step, so without this the signed prekey, OPKs and kyber keys
+        // would live only on the server and inbound PreKeySignalMessages would fail
+        // with InvalidKeyIdException. The identity key + registration id are already
+        // persisted as side effects of getIdentityKeyPair()/getLocalRegistrationId().
+        // Safe for the init() path too: on upsert failure init() calls clearStorage(),
+        // which removes these again.
+        storePreKeyRecords(opk);
+        storeSignedPreKey(signedPreKeyRecord);
+        storeKyberPreKeyRecords(kyberPreKeyRecords);
+
         return new KeyBundle(registrationId, opk, signedPreKeyRecord,
                 identityKeyPair, signature,
                 kyberPreKeyRecords);
@@ -210,6 +221,6 @@ public class SekretessCryptographicService {
         PreKeySignalMessage preKeySignalMessage = new PreKeySignalMessage(base64Decoder.decode(base64Message));
         SignalProtocolAddress signalProtocolAddress = new SignalProtocolAddress(sender, 1);
         SessionCipher sessionCipher = new SessionCipher(sekretessSignalProtocolStore, signalProtocolAddress);
-        return Optional.of(new String(sessionCipher.decrypt(preKeySignalMessage, UsePqRatchet.YES)));
+        return Optional.of(new String(sessionCipher.decrypt(preKeySignalMessage)));
     }
 }

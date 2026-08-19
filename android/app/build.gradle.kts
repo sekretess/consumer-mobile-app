@@ -10,6 +10,17 @@ plugins {
 import java.util.Properties
 import java.io.FileInputStream
 
+// Release codename, read from pubspec.yaml so Android and iOS stay in sync.
+// `version:` in pubspec must be a semver, so the codename lives in its own key
+// (see the comment there). iOS reads the same key in a Runner build phase.
+val pubspecVersionName: String = rootProject.file("../pubspec.yaml")
+    .readLines()
+    .firstOrNull { it.startsWith("version_name:") }
+    ?.substringAfter(":")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: error("version_name is missing from pubspec.yaml")
+
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 
@@ -38,9 +49,11 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 30
-        targetSdk = 35
-        versionCode = 47
-        versionName = "Grape"
+        targetSdk = 36
+        // Both come from pubspec.yaml: the build number from `version: x.y.z+N`,
+        // the codename from `version_name:`.
+        versionCode = flutter.versionCode
+        versionName = pubspecVersionName
     }
 
 
@@ -98,8 +111,9 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation("com.google.android.play:app-update:2.1.0")
     // Signal Protocol dependencies
-    implementation("org.signal:libsignal-client:0.80.1")
-    runtimeOnly("org.signal:libsignal-android:0.78.2")
+    // client (Java API) and android (native .so) must be the SAME version.
+    implementation("org.signal:libsignal-client:0.86.5")
+    runtimeOnly("org.signal:libsignal-android:0.86.5")
     
     // Room database for Signal Protocol storage
     implementation("androidx.room:room-runtime:2.6.1")

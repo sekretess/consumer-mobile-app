@@ -3,6 +3,8 @@ package io.sekretess.cryptography.storage;
 import android.util.Log;
 
 import org.signal.libsignal.protocol.InvalidKeyIdException;
+import org.signal.libsignal.protocol.ReusedBaseKeyException;
+import org.signal.libsignal.protocol.ecc.ECPublicKey;
 import org.signal.libsignal.protocol.state.KyberPreKeyRecord;
 import org.signal.libsignal.protocol.state.KyberPreKeyStore;
 
@@ -44,7 +46,12 @@ public class SekretessKyberPreKeyStore implements KyberPreKeyStore {
     }
 
     @Override
-    public void markKyberPreKeyUsed(int kyberPreKeyId) {
+    public void markKyberPreKeyUsed(int kyberPreKeyId, int signedPreKeyId, ECPublicKey baseKey)
+            throws ReusedBaseKeyException {
+        // libsignal 0.86.x passes the (signedPreKeyId, baseKey) that consumed this
+        // kyber prekey so a store can reject a replayed base key (ReusedBaseKeyException).
+        // These are one-time kyber prekeys, so marking-by-id preserves prior behaviour;
+        // base-key replay tracking is not implemented.
         kyberPreKeyRepository.markKyberPreKeyUsed(kyberPreKeyId);
     }
 

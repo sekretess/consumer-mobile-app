@@ -17,7 +17,7 @@ final businessesProvider = FutureProvider<List<BusinessDto>>((ref) async {
   final subscribedSet = subscribedBusinesses.toSet();
   final businessesWithSubscription = businesses.map((business) {
     return business.copyWith(
-      subscribed: subscribedSet.contains(business.name),
+      subscribed: subscribedSet.contains(business.businessId),
     );
   }).toList();
   
@@ -38,7 +38,6 @@ final businessesProvider = FutureProvider<List<BusinessDto>>((ref) async {
       result.add(const BusinessDto(
         displayName: 'Subscribed',
         name: '__HEADER_SUBSCRIBED__',
-        email: '',
         subscribed: true,
         itemType: ItemType.header,
       ));
@@ -48,7 +47,6 @@ final businessesProvider = FutureProvider<List<BusinessDto>>((ref) async {
       result.add(const BusinessDto(
         displayName: 'Other Businesses',
         name: '__HEADER_OTHER__',
-        email: '',
         subscribed: false,
         itemType: ItemType.header,
       ));

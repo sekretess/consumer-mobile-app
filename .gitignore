@@ -43,3 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Native build output dirs
+/android/build/
+/ios/build/
+
+# Signing keystores and credentials (never commit)
+*.keystore
+*.jks
+key.properties
+/android/app/sekretess-android-app-keystore

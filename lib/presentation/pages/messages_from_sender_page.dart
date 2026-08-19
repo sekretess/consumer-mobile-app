@@ -9,6 +9,7 @@ import '../../data/models/message_record_dto.dart';
 import '../../data/models/business_dto.dart';
 import '../../data/models/message_dto.dart';
 import '../../data/services/message_service.dart';
+import '../../data/services/file_service.dart';
 import '../../data/repositories/message_repository.dart';
 import '../../core/network/websocket_service.dart';
 
@@ -28,6 +29,8 @@ class _MessagesFromSenderPageState extends ConsumerState<MessagesFromSenderPage>
   List<MessageRecordDto> _messages = [];
   bool _isLoading = true;
   StreamSubscription<MessageDto>? _messageSubscription;
+  StreamSubscription<void>? _fileStoredSubscription;
+  final Set<int> _retryingMessageIds = {};
 
   @override
   void initState() {
@@ -39,6 +42,7 @@ class _MessagesFromSenderPageState extends ConsumerState<MessagesFromSenderPage>
   @override
   void dispose() {
     _messageSubscription?.cancel();
+    _fileStoredSubscription?.cancel();
     super.dispose();
   }
 
@@ -68,10 +72,14 @@ class _MessagesFromSenderPageState extends ConsumerState<MessagesFromSenderPage>
   void _listenToMessageEvents() {
     final webSocketService = getIt<WebSocketService>();
     _messageSubscription = webSocketService.messageStream.listen((message) {
-      // Reload messages if the new message is from this sender
       if (message.sender == widget.sender) {
         _loadMessages();
       }
+    });
+
+    // Also reload when a file finishes downloading so the Open button activates
+    _fileStoredSubscription = getIt<MessageService>().fileStoredStream.listen((_) {
+      _loadMessages();
     });
   }
 
@@ -79,7 +87,7 @@ class _MessagesFromSenderPageState extends ConsumerState<MessagesFromSenderPage>
     try {
       final messageRepository = getIt<MessageRepository>();
       await messageRepository.deleteMessage(messageId);
-      await _loadMessages(); // Reload messages after deletion
+      await _loadMessages();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -88,6 +96,47 @@ class _MessagesFromSenderPageState extends ConsumerState<MessagesFromSenderPage>
             backgroundColor: AppColors.error,
           ),
         );
+      }
+    }
+  }
+
+  Future<void> _openFile(String localPath) async {
+    try {
+      final fileService = getIt<FileService>();
+      await fileService.openFile(localPath);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open file: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _retryFileDownload(MessageRecordDto message) async {
+    final messageId = message.messageId;
+    final fileMessageJson = message.fileMessageJson;
+    if (messageId == null || fileMessageJson == null) return;
+
+    setState(() => _retryingMessageIds.add(messageId));
+    try {
+      final ok = await getIt<MessageService>()
+          .retryFileDownload(messageId, fileMessageJson);
+      if (mounted && !ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Download failed. Please try again.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      // The MessageService emits on fileStoredStream, which reloads the list.
+    } finally {
+      if (mounted) {
+        setState(() => _retryingMessageIds.remove(messageId));
       }
     }
   }
@@ -179,7 +228,9 @@ class _MessagesFromSenderPageState extends ConsumerState<MessagesFromSenderPage>
                   _deleteMessage(message.messageId!);
                 }
               },
-              child: _buildMessageBubble(message),
+              child: message.isFileMessage
+                  ? _buildFileBubble(message)
+                  : _buildMessageBubble(message),
             );
           }
         },
@@ -230,6 +281,162 @@ class _MessagesFromSenderPageState extends ConsumerState<MessagesFromSenderPage>
                   fontSize: 16,
                 ),
               ),
+            const SizedBox(height: 4),
+            Text(
+              messageTime,
+              style: const TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileAction(
+    MessageRecordDto message, {
+    required bool hasFile,
+    required bool isRetrying,
+  }) {
+    if (hasFile) {
+      return ElevatedButton.icon(
+        onPressed: () => _openFile(message.filePath!),
+        icon: const Icon(Icons.open_in_new, size: 16),
+        label: const Text('Open'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.sekretessBlue,
+          foregroundColor: AppColors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          textStyle: const TextStyle(fontSize: 13),
+        ),
+      );
+    }
+
+    if (isRetrying) {
+      return const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.sekretessBlue),
+            ),
+          ),
+          SizedBox(width: 6),
+          Text(
+            'Downloading…',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          ),
+        ],
+      );
+    }
+
+    if (message.downloadFailed) {
+      final canRetry = message.retryable && message.fileMessageJson != null;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: AppColors.error, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                canRetry ? 'Download failed' : 'File unavailable',
+                style: const TextStyle(color: AppColors.error, fontSize: 13),
+              ),
+            ],
+          ),
+          if (canRetry) ...[
+            const SizedBox(height: 6),
+            ElevatedButton.icon(
+              onPressed: () => _retryFileDownload(message),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.sekretessBlue,
+                foregroundColor: AppColors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                textStyle: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    // Legacy rows with no status and no local path: show a neutral spinner.
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.sekretessBlue),
+          ),
+        ),
+        SizedBox(width: 6),
+        Text(
+          'Downloading…',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFileBubble(MessageRecordDto message) {
+    final messageTime = DateFormat('HH:mm').format(
+      DateTime.fromMillisecondsSinceEpoch(message.messageDate),
+    );
+    final hasFile = message.filePath != null;
+    final isRetrying = message.messageId != null &&
+        _retryingMessageIds.contains(message.messageId);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      alignment: Alignment.centerRight,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.insert_drive_file_outlined,
+                  color: AppColors.sekretessBlue,
+                  size: 20,
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'File',
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildFileAction(message, hasFile: hasFile, isRetrying: isRetrying),
             const SizedBox(height: 4),
             Text(
               messageTime,

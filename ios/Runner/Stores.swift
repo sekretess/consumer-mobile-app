@@ -249,7 +249,15 @@ class SekretessKyberPreKeyStore: KyberPreKeyStore {
         kyberPreKeyRepository.storeKyberPreKey(id, record)
     }
     
-    func markKyberPreKeyUsed(id: UInt32, context: StoreContext) throws {
+    // libsignal 0.86 added signedPreKeyId/baseKey so a store can record which
+    // session consumed the key. This store only tracks used/unused, so they are
+    // ignored — same behaviour as the pre-0.86 two-argument signature.
+    func markKyberPreKeyUsed(
+        id: UInt32,
+        signedPreKeyId: UInt32,
+        baseKey: PublicKey,
+        context: StoreContext
+    ) throws {
         markKyberPreKeyUsed(id)
     }
     

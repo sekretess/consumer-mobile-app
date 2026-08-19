@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:injectable/injectable.dart';
@@ -10,7 +11,9 @@ import '../../data/models/auth_response.dart';
 import '../../data/models/business_dto.dart';
 import '../../data/models/user_dto.dart';
 import '../../data/models/key_bundle_dto.dart';
+import '../../data/models/verification_status_dto.dart';
 import '../../data/repositories/auth_repository.dart';
+import 'api_exceptions.dart';
 import 'interceptors/auth_interceptor.dart';
 
 @lazySingleton
@@ -69,10 +72,81 @@ class ApiClient {
         ),
       );
       return AuthResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      final status = _unverifiedEmailStatus(e.response);
+      if (status != null) {
+        _logger.w('Login refused: email not verified for $username');
+        throw EmailNotVerifiedException(
+          username: status.username?.isNotEmpty == true
+              ? status.username!
+              : username,
+          message: status.message?.isNotEmpty == true
+              ? status.message!
+              : 'Your email address has not been verified yet.',
+        );
+      }
+      _logger.e('Login failed', error: e);
+      rethrow;
     } catch (e) {
       _logger.e('Login failed', error: e);
       rethrow;
     }
+  }
+
+  /// Returns the verification status when [response] is the "email not
+  /// verified" 403 the server answers an otherwise valid login with, and null
+  /// for every other response (including an ordinary 403).
+  static VerificationStatusDto? _unverifiedEmailStatus(Response? response) {
+    if (response?.statusCode != 403) return null;
+    final status = VerificationStatusDto.tryParse(response!.data);
+    return (status != null && !status.verified) ? status : null;
+  }
+
+  /// Re-sends the signup verification email for [username].
+  ///
+  /// Unauthenticated by design — the caller has just been refused a login
+  /// because the account is unverified, so it holds no token.
+  Future<String> resendVerificationEmail(String username) async {
+    try {
+      final response = await _dio.post(
+        '/${Uri.encodeComponent(username)}/auth/resend-email',
+        options: Options(
+          headers: {
+            'Authorization': null, // No auth needed: the user isn't logged in
+          },
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+      _logger.i('Resend verification email: HTTP ${response.statusCode}');
+      final body = _asPlainMessage(response.data);
+      if (response.statusCode == 200) {
+        return body ?? 'Verification email sent.';
+      }
+      throw ResendVerificationException(
+        body ?? 'Could not resend the verification email.',
+      );
+    } on DioException catch (e) {
+      _logger.e('Resend verification email failed', error: e);
+      throw ResendVerificationException(
+        'Could not resend the verification email. Please try again.',
+      );
+    }
+  }
+
+  /// The server answers these endpoints with a bare JSON string; Dio hands it
+  /// back either decoded or raw depending on the content type.
+  static String? _asPlainMessage(dynamic data) {
+    if (data is String) {
+      if (data.isEmpty) return null;
+      try {
+        final decoded = jsonDecode(data);
+        if (decoded is String) return decoded.isEmpty ? null : decoded;
+      } catch (_) {
+        // Not JSON — the raw body is the message.
+      }
+      return data;
+    }
+    return null;
   }
 
   Future<AuthResponse> refreshToken(String refreshToken) async {
@@ -123,9 +197,9 @@ class ApiClient {
     }
   }
 
-  Future<bool> subscribeToBusiness(String businessName) async {
+  Future<bool> subscribeToBusiness(String businessId) async {
     try {
-      await _dio.post('/businesses/$businessName/subscriptions');
+      await _dio.post('/businesses/$businessId/subscriptions');
       return true;
     } catch (e) {
       _logger.e('Subscribe to business failed', error: e);
@@ -133,9 +207,9 @@ class ApiClient {
     }
   }
 
-  Future<bool> unsubscribeFromBusiness(String businessName) async {
+  Future<bool> unsubscribeFromBusiness(String businessId) async {
     try {
-      await _dio.delete('/businesses/$businessName/subscriptions');
+      await _dio.delete('/businesses/$businessId/subscriptions');
       return true;
     } catch (e) {
       _logger.e('Unsubscribe from business failed', error: e);
@@ -201,10 +275,35 @@ class ApiClient {
     }
   }
 
+  /// Confirms an email-verification token issued by the signup email.
+  ///
+  /// Only needed when the verification link hands the raw token to the app
+  /// (`sekretess://verify?token=...`). When the server consumes the token
+  /// itself and merely redirects to `sekretess://verify`, there is nothing
+  /// left for the app to confirm.
+  Future<bool> verifyEmail(String token) async {
+    try {
+      final response = await _dio.get(
+        '/auth/verify/$token',
+        options: Options(
+          headers: {
+            'Authorization': null, // No auth needed for email verification
+          },
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+      _logger.i('Verify email: HTTP ${response.statusCode}');
+      return response.statusCode == 200;
+    } catch (e) {
+      _logger.e('Verify email failed', error: e);
+      return false;
+    }
+  }
+
   Future<bool> deleteUser() async {
     try {
       final response = await _dio.delete(
-        '/consumers',
+        '',
         options: Options(
           validateStatus: (status) {
             return status != null && status >= 200 && status < 300;
@@ -290,6 +389,23 @@ class ApiClient {
     } catch (e) {
       _logger.e('Update one time keys failed with unexpected error', error: e);
       return false;
+    }
+  }
+
+  Future<Uint8List?> downloadEncryptedFile(String fileId, String fileToken) async {
+    try {
+      final response = await _dio.post(
+        '/files',
+        data: jsonEncode({'fileId': fileId, 'fileToken': fileToken}),
+        options: Options(
+          contentType: 'application/json',
+          responseType: ResponseType.bytes,
+        ),
+      );
+      return response.data as Uint8List?;
+    } catch (e) {
+      _logger.e('Download encrypted file failed', error: e);
+      return null;
     }
   }
 }

@@ -14,6 +14,7 @@ abstract class IMessageRepository {
   Future<List<MessageBriefDto>> getMessageBriefs(String username);
   Future<List<String>> getTopSenders(String username);
   Future<void> storeDecryptedMessage(String sender, String message, String username);
+  Future<void> updateMessageBody(int messageId, String message);
   Future<List<Message>> getMessages(String username, String sender);
   Future<void> deleteMessage(int messageId);
 }
@@ -63,6 +64,16 @@ class MessageRepository implements IMessageRepository {
       _logger.i('Stored decrypted message from $sender');
     } catch (e) {
       _logger.e('Failed to store decrypted message', error: e);
+    }
+  }
+
+  @override
+  Future<void> updateMessageBody(int messageId, String message) async {
+    try {
+      await _database.updateMessageBody(messageId, message);
+      _logger.i('Updated message body for id=$messageId');
+    } catch (e) {
+      _logger.e('Failed to update message body', error: e);
     }
   }
 

@@ -2,6 +2,7 @@ enum MessageType {
   advertisement,
   keyDistribution,
   private,
+  file,
   unknown;
 
   static MessageType fromString(String name) {
@@ -12,6 +13,8 @@ enum MessageType {
         return MessageType.keyDistribution;
       case 'private':
         return MessageType.private;
+      case 'file':
+        return MessageType.file;
       default:
         return MessageType.unknown;
     }

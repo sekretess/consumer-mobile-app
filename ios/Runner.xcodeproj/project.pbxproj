@@ -224,6 +224,7 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
+				A1B2C3D41E4923F5004D2609 /* Set version name from pubspec */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				0181834E7CA6B22960628B86 /* [CP] Embed Pods Frameworks */,
 				31C77F3E05394B9D983F2B89 /* [CP] Copy Pods Resources */,
@@ -349,6 +350,19 @@
 			name = "Thin Binary";
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" embed_and_thin";
+		};
+		A1B2C3D41E4923F5004D2609 /* Set version name from pubspec */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../pubspec.yaml",
+			);
+			name = "Set version name from pubspec";
+			shellPath = /bin/sh;
+			shellScript = "# Copies pubspec.yaml's version_name (the release codename Gradle also\n# reads for Android's versionName) into the built Info.plist, where the\n# io.sekretess/version channel reads it as SekretessVersionName.\nset -e\nPLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\nVERSION_NAME=$(awk -F': *' '/^version_name:/ { print $2; exit }' \"$SRCROOT/../pubspec.yaml\" | tr -d '[:space:]')\nif [ -z \"$VERSION_NAME\" ]; then\n  echo \"error: version_name is missing from pubspec.yaml\" >&2\n  exit 1\nfi\n/usr/libexec/PlistBuddy -c \"Set :SekretessVersionName $VERSION_NAME\" \"$PLIST\" 2>/dev/null \\\n  || /usr/libexec/PlistBuddy -c \"Add :SekretessVersionName string $VERSION_NAME\" \"$PLIST\"\n";
+			showEnvVarsInLog = 0;
 		};
 		4AFCBF365D733F1ECD03F6EA /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;

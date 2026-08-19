@@ -15,11 +15,14 @@ class BusinessDto extends Equatable {
   @JsonKey(name: 'displayName')
   final String displayName;
 
-  @JsonKey(name: 'name')
+  @JsonKey(name: 'businessName')
   final String name;
 
-  @JsonKey(name: 'email')
-  final String email;
+  @JsonKey(name: 'businessId')
+  final String? businessId;
+
+  @JsonKey(name: 'passedSekretessVerification')
+  final bool passedSekretessVerification;
 
   @JsonKey(name: 'icon')
   final String? icon;
@@ -32,7 +35,8 @@ class BusinessDto extends Equatable {
   const BusinessDto({
     required this.displayName,
     required this.name,
-    required this.email,
+    this.businessId,
+    this.passedSekretessVerification = false,
     this.icon,
     this.subscribed = false,
     this.itemType,
@@ -41,7 +45,8 @@ class BusinessDto extends Equatable {
   BusinessDto copyWith({
     String? displayName,
     String? name,
-    String? email,
+    String? businessId,
+    bool? passedSekretessVerification,
     String? icon,
     bool? subscribed,
     ItemType? itemType,
@@ -49,13 +54,15 @@ class BusinessDto extends Equatable {
     return BusinessDto(
       displayName: displayName ?? this.displayName,
       name: name ?? this.name,
-      email: email ?? this.email,
+      businessId: businessId ?? this.businessId,
+      passedSekretessVerification:
+          passedSekretessVerification ?? this.passedSekretessVerification,
       icon: icon ?? this.icon,
       subscribed: subscribed ?? this.subscribed,
       itemType: itemType ?? this.itemType,
     );
   }
-  
+
   // Helper to check if this is a header item
   bool get isHeader => itemType == ItemType.header;
 
@@ -65,5 +72,5 @@ class BusinessDto extends Equatable {
   Map<String, dynamic> toJson() => _$BusinessDtoToJson(this);
 
   @override
-  List<Object?> get props => [name, email, subscribed];
+  List<Object?> get props => [name, businessId, subscribed];
 }

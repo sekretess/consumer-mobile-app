@@ -51,14 +51,27 @@ class _BusinessInfoBottomSheetState extends State<BusinessInfoBottomSheet> {
       _isLoading = true;
     });
 
+    final businessId = widget.business.businessId;
+    if (businessId == null) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Missing business id')),
+        );
+      }
+      return;
+    }
+
     try {
       final businessService = getIt<BusinessService>();
       bool success;
-      
+
       if (value) {
-        success = await businessService.subscribeToBusiness(widget.business.name);
+        success = await businessService.subscribeToBusiness(businessId);
       } else {
-        success = await businessService.unsubscribeFromBusiness(widget.business.name);
+        success = await businessService.unsubscribeFromBusiness(businessId);
       }
 
       if (success && mounted) {
@@ -177,7 +190,13 @@ class _BusinessInfoBottomSheetState extends State<BusinessInfoBottomSheet> {
             onChanged: _toggleSoundAlerts,
           ),
           
-          SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
+          // Reserve space for the keyboard (viewInsets) AND the system
+          // navigation bar (viewPadding.bottom) so the last row isn't hidden
+          // behind the system toolbar on gesture/3-button-nav devices.
+          SizedBox(
+            height: MediaQuery.of(context).viewInsets.bottom +
+                MediaQuery.of(context).viewPadding.bottom,
+          ),
         ],
       ),
     );

@@ -23,6 +23,9 @@ import 'package:consumer_flutter_app/data/services/business_service.dart'
     as _i347;
 import 'package:consumer_flutter_app/data/services/cryptographic_service.dart'
     as _i629;
+import 'package:consumer_flutter_app/data/services/deep_link_service.dart'
+    as _i384;
+import 'package:consumer_flutter_app/data/services/file_service.dart' as _i724;
 import 'package:consumer_flutter_app/data/services/message_service.dart'
     as _i951;
 import 'package:get_it/get_it.dart' as _i174;
@@ -49,8 +52,14 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i45.MessageRepository>(() => _i45.MessageRepository());
     gh.lazySingleton<_i629.CryptographicService>(
         () => _i629.CryptographicService());
+    gh.lazySingleton<_i384.DeepLinkService>(
+      () => _i384.DeepLinkService(gh<_i838.ApiClient>()),
+      dispose: (i) => i.dispose(),
+    );
     gh.lazySingleton<_i498.ApiBridgeService>(
         () => _i498.ApiBridgeService(gh<_i838.ApiClient>()));
+    gh.lazySingleton<_i724.FileService>(
+        () => _i724.FileService(gh<_i838.ApiClient>()));
     gh.lazySingleton<_i347.BusinessService>(
         () => _i347.BusinessService(gh<_i838.ApiClient>()));
     gh.lazySingleton<_i549.AuthRepository>(() => _i549.AuthRepository(
@@ -62,6 +71,7 @@ extension GetItInjectableX on _i174.GetIt {
           gh<_i45.MessageRepository>(),
           gh<_i549.AuthRepository>(),
           gh<_i629.CryptographicService>(),
+          gh<_i724.FileService>(),
         ));
     gh.lazySingleton<_i30.WebSocketService>(() => _i30.WebSocketService(
           gh<_i549.AuthRepository>(),

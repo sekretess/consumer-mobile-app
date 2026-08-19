@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Expose the app documents directory so open_filex can share files with viewer apps -->
+    <files-path name="sekretess_files" path="sekretess_files/" />
+</paths>

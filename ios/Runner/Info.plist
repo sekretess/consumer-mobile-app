@@ -22,8 +22,29 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>io.sekretess</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>sekretess</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Release codename reported by the io.sekretess/version channel. It cannot
+	     go in CFBundleShortVersionString, which App Store Connect requires to be
+	     period-separated integers. The value below is a placeholder: the Runner
+	     target's "Set version name from pubspec" build phase overwrites it in
+	     the built app from pubspec.yaml's version_name, the same key Gradle
+	     reads for Android's versionName. -->
+	<key>SekretessVersionName</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
